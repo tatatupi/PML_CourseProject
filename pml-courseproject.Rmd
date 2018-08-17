@@ -1,0 +1,121 @@
+---
+title: "PML Course Project - Prediction Assignment Writeup"
+author: "Taiguara Tupinambás"
+date: "August 17, 2018"
+output: html_document
+---
+  
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+```{r packages}
+library(caret)
+```
+
+
+BLABLABLABLA
+
+```{r data loading}
+trainData <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+testData <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+trainingData <- read.csv(trainData)
+testingData <- read.csv(testData)
+
+inTrain <- createDataPartition(y=trainingData$classe, 
+                               p=0.7, list=FALSE)
+
+training <- trainingData[inTrain,]
+testing <- trainingData[-inTrain,]
+```
+
+## Exploratory Analysis
+
+```{r cars}
+dim(training)
+```
+
+The data from HAR has 160 columns, from which a lot of them should not be used by the models. We begin by removing columns that has NA values, that serves as identification or timestamp record and that has no significant variation and therefore would not help with model prediction (near-zero variance).
+All this data preprocessing is done looking at the training partition, and applied equally to the testing partition.
+
+```{r preprocess}
+
+# Selecting only columns with less than 1% of its values as NA
+naColumns <- sapply(training, function(c) mean(is.na(c)))<0.01
+training <- training[, naColumns]
+testing <- testing[, naColumns]
+
+# Removing first 5 columns of identification
+training <- training[,-(1:5)]
+testing <- testing[, -(1:5)]
+
+# Removing near-zero value columns
+nzv <- nearZeroVar(training)
+training <- training[, -nzv]
+testing <- testing[, -nzv]
+
+dim(training)
+```
+
+After the first cleanse, there are 49 variables that can be used to predict the class of activity.
+The next step, to improve model design, is to standardize the data
+
+``` {r standardization}
+preObj <- preProcess(training[,names(training)!="classe"], method=c("center","scale"))
+trainStd <- predict(preObj,training[,names(training)!="classe"])
+testStd <- predict(preObj,testing[,names(testing)!="classe"])
+```
+
+
+To check if further dimensionality reduction is necessary, we perform a correlation analysis
+
+``` {r coranalysis}
+#calculate correlation between variables
+M <- abs(cor(training[,names(training)!="classe"]))
+diag(M) <- 0
+#printing those variables that are highly correlated
+which(M > 0.8,arr.ind=T)
+```
+
+As we can see, there are a lot of variables pairs with high correlation. Therefore we will use Principal Components Analysis, to reduce dimensionality.
+But first, we need to standardie
+
+``` {r pca}
+preProc <- preProcess(trainStd,
+                      method="pca", thresh = 0.9)
+trainPC <- predict(preProc,trainStd)
+testPC <- predict(preProc,testStd)
+```
+
+## Model Design
+
+Two models are built and then combined to improve accuracy. First a random forest is constructed on the processed data set.
+
+```{r randomForest}
+modRf <- train(training$classe ~., method="rf",data=trainPC)
+predRf <- predict(modRf,tesPC)
+confusionMatrix(predRf,testing$classe)
+```
+Than we build a model using the decision tree method
+
+```{r decisionTree}
+modDt <- train(training$classe ~., method="rf",data=trainPC)
+predDt <- predict(modRf,tesPC)
+confusionMatrix(predDt,testing$classe)
+```
+
+Both models are combined via gam method
+
+```{r decisionTree}
+predComb <- data.frame(predRf,predDf,classe=testing$classe)
+combModFit <- train(classe ~., method="gam",data=predComb)
+combPred <- predict (combModFit,predComb)
+confusionMatrix(combPred,testing$classe)
+```
+
+
+
+
