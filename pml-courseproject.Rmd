@@ -12,7 +12,8 @@ knitr::opts_chunk$set(echo = TRUE)
 ## Introduction
 
 ```{r packages}
-library(caret)
+library('caret')
+library('rpart')
 ```
 
 
@@ -44,7 +45,7 @@ All this data preprocessing is done looking at the training partition, and appli
 ```{r preprocess}
 
 # Selecting only columns with less than 1% of its values as NA
-naColumns <- sapply(training, function(c) mean(is.na(c)))<0.01
+naColumns <- sapply(training, function(c) mean(is.na(c)))<0.05
 training <- training[, naColumns]
 testing <- testing[, naColumns]
 
@@ -84,7 +85,7 @@ As we can see, there are a lot of variables pairs with high correlation. Therefo
 But first, we need to standardie
 
 ``` {r pca}
-preProc <- preProcess(trainStd,
+preProc <- preProcess(trainStd, 
                       method="pca", thresh = 0.9)
 trainPC <- predict(preProc,trainStd)
 testPC <- predict(preProc,testStd)
@@ -95,26 +96,36 @@ testPC <- predict(preProc,testStd)
 Two models are built and then combined to improve accuracy. First a random forest is constructed on the processed data set.
 
 ```{r randomForest}
-modRf <- train(training$classe ~., method="rf",data=trainPC)
-predRf <- predict(modRf,tesPC)
+set.seed(1313)
+trainPC['classe'] <- training$classe
+testPC['classe'] <- testing$classe
+
+modRf <- train(classe ~., method="rf",data=trainPC)
+predRf <- predict(modRf,testPC)
 confusionMatrix(predRf,testing$classe)
+
+# 
+# set.seed(301)
+# controlGBM <- trainControl(method = "repeatedcv", number = 5, repeats = 1)
+# modFitGBM  <- train(classe ~ ., data=training, method = "gbm",
+#                     trControl = controlGBM, verbose = FALSE)
+# 
+# 
+# predictGBM <- predict(modFitGBM, newdata=TestSet)
+# confMatGBM <- confusionMatrix(predictGBM, TestSet$classe)
+# confMatGBM
 ```
 Than we build a model using the decision tree method
 
 ```{r decisionTree}
-modDt <- train(training$classe ~., method="rf",data=trainPC)
-predDt <- predict(modRf,tesPC)
-confusionMatrix(predDt,testing$classe)
+set.seed(1313)
+# modDt <- train(training$classe ~., method="rpart",data=trainPC)
+modDt <-  rpart(classe~., data=trainPC, method="class")
+predDt <- predict(modDt, newdata=testPC, type="class") 
+confusionMatrix(predDt,testing$classe)  
 ```
 
-Both models are combined via gam method
 
-```{r decisionTree}
-predComb <- data.frame(predRf,predDf,classe=testing$classe)
-combModFit <- train(classe ~., method="gam",data=predComb)
-combPred <- predict (combModFit,predComb)
-confusionMatrix(combPred,testing$classe)
-```
 
 
 
